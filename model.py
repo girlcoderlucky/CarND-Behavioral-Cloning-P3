@@ -9,6 +9,7 @@ from keras.models import Sequential
 from keras.models import load_model
 from keras.layers import Dense, Dropout, Flatten, Lambda, ELU, Cropping2D
 from keras.layers.convolutional import Convolution2D
+from keras.utils.visualize_util import plot
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from scipy.ndimage.interpolation import zoom
@@ -251,6 +252,7 @@ def main():
   validation_generator = generator(validation_samples, batch_size=32)
 
   #plot_angle_histogram(train_generator, len(train_samples))
+  plot(model, to_file='./examples/model_visualization.png')
 
   model.compile(loss='mse', optimizer=Adam(lr=0.00001))
   model.fit_generator(train_generator,
