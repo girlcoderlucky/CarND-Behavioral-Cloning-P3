@@ -1,6 +1,5 @@
 import csv
 import os
-import argparse
 import json
 import cv2
 import random
@@ -9,7 +8,6 @@ from keras.models import Sequential
 from keras.models import load_model
 from keras.layers import Dense, Dropout, Flatten, Lambda, ELU, Cropping2D
 from keras.layers.convolutional import Convolution2D
-from keras.utils.visualize_util import plot
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 from scipy.ndimage.interpolation import zoom
@@ -141,43 +139,43 @@ def generator(samples, batch_size=32):
             images = []
             angles = []
 
-            # To read random 32x2 C/L/R images
-            for i in range(2):
-                for batch_sample in batch_samples:
-                    randimg = 0#random.randint(0, 2)
-                    name = './data/IMG/' + batch_sample[randimg].split('/')[-1]
-                    image = cv2.imread(name)
-                    #original = image
-                    angle = float(batch_sample[3])
+            # To read random 32 C/L/R images
+            for batch_sample in batch_samples:
+                randimg = random.randint(0, 2)
+                name = './data/IMG/' + batch_sample[randimg].split('/')[-1]
+                image = cv2.imread(name)
+                #original = image
+                angle = float(batch_sample[3])
+                #if angle < 0 :
+                #    continue
+                if randimg is 1:
+                    angle = angle + 0.2
+                if randimg is 2:
+                    angle = angle - 0.2
 
-                    if randimg is 1:
-                        angle = angle + 0.2
-                    if randimg is 2:
-                        angle = angle - 0.2
+                #Blur the image to reduce noise
+                image = blur_image(image)
 
-                    #Blur the image to reduce noise
-                    image = blur_image(image)
+                # Random flip of images
+                if (random.randint(0, 2) == 0):
+                    image, angle = flip_image(image, angle)
 
-                    # Random flip of images
-                    if (random.randint(0, 2) == 0):
-                        image, angle = flip_image(image, angle)
+                # Random horizontal and vertical shifts
+                if randimg is 3:
+                    image, angle = trans_image(image, angle, 80)
+                else:
+                    image, angle = trans_image(image, angle, 40)
 
-                    # Random horizontal and vertical shifts
-                    if randimg is 3:
-                        image, angle = trans_image(image, angle, 80)
-                    else:
-                        image, angle = trans_image(image, angle, 40)
+                # Random image brightness augmentation and shadow
+                ran = random.randint(0, 4)
+                if(ran == 0):
+                    image = augment_brightness_camera_images(image)
+                if(ran == 1):
+                    image = add_random_shadow(image)
+                    #save_image(original,image,'shadow_image')
 
-                    # Random image brightness augmentation and shadow
-                    ran = random.randint(0, 4)
-                    if(ran == 0):
-                        image = augment_brightness_camera_images(image)
-                    if(ran == 1):
-                        image = add_random_shadow(image)
-                        #save_image(original,image,'random_shadow')
-
-                    images.append(image)
-                    angles.append(angle)
+                images.append(image)
+                angles.append(angle)
 
             # trim image to only see section with road
             X_train = np.array(images)
@@ -238,8 +236,8 @@ def main():
       samples.append(line)
 
   #Get comma.ai model
-  if os.path.exists("./outputs/model.h5"):
-      model = load_model("./outputs/model.h5")
+  if os.path.exists("./model.h5"):
+      model = load_model("./model.h5")
       print("Loading existing model.h5")
   else:
       model = get_model()
@@ -252,22 +250,18 @@ def main():
   validation_generator = generator(validation_samples, batch_size=32)
 
   #plot_angle_histogram(train_generator, len(train_samples))
-  plot(model, to_file='./examples/model_visualization.png')
 
-  model.compile(loss='mse', optimizer=Adam(lr=0.00001))
+  model.compile(loss='mse', optimizer=Adam(lr=0.0001)) #To alter the learning rate in Adam : Adam(lr=0.00001)
   model.fit_generator(train_generator,
-                      samples_per_epoch= (len(train_samples)*2),
+                      samples_per_epoch= len(train_samples),
                       validation_data = validation_generator,
-                      nb_val_samples = (len(validation_samples)*2),
-                      nb_epoch = 1)
+                      nb_val_samples = len(validation_samples),
+                      nb_epoch = 5)
 
   print("Saving model weights and configuration file.")
 
-  if not os.path.exists("./outputs/"):
-      os.makedirs("./outputs/")
-
-  model.save("./outputs/model.h5")
-  with open('./outputs/steering_angle.json', 'w') as outfile:
+  model.save("./model.h5")
+  with open('./steering_angle.json', 'w') as outfile:
     json.dump(model.to_json(), outfile)
 
 if __name__ == "__main__":

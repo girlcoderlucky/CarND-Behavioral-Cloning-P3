@@ -87,7 +87,7 @@ To combat the overfitting, I saved the model when whenever it showed the better 
 The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track.
 For example when there was shadow of tree, car was not not detecting left yellow line correctly was taking left turn. To improve this driving behavior in these cases, I introduced random "shadowed images"
 
-At the end of the process, the vehicle is able to drive autonomously around the track without leaving the road.
+At the end of the process, the vehicle is able to drive autonomously 90% of the first track without leaving the road but at 2 locations car was going out of track. You can see it in the output video.mp4 that I manually altered path. I think my model is little left baised, many need more training to fix it.
 
 ####2. Final Model Architecture
 
@@ -160,4 +160,4 @@ Here is my final output video:
 
 ![alt text][video]
 
-Improvements: This project was defineltely the most challenging and fun than others in this term. I would continue to architect better model and train to drive the car on track 2 autonomously
+Improvements: This project was defineltely the most challenging and fun in this term. I would continue to architect better model and train to drive the car on track 2 autonomously
