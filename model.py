@@ -98,6 +98,30 @@ def trans_image(image, steer, trans_range):
     image_tr = cv2.warpAffine(image, Trans_M, (cols, rows))
     return image_tr, steer_ang
 
+#Function to add shadow
+#Reference : https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.9iigd72nq
+def add_random_shadow(image):
+    top_y = 320*np.random.uniform()
+    top_x = 0
+    bot_x = 160
+    bot_y = 320*np.random.uniform()
+    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
+    shadow_mask = 0*image_hls[:,:,1]
+    X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
+    Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
+    shadow_mask[((X_m-top_x)*(bot_y-top_y) -(bot_x - top_x)*(Y_m-top_y) >=0)]=1
+    #random_bright = .25+.7*np.random.uniform()
+    if np.random.randint(2)==1:
+        random_bright = .5
+        cond1 = shadow_mask==1
+        cond0 = shadow_mask==0
+        if np.random.randint(2)==1:
+            image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
+        else:
+            image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright
+    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
+    return image
+
 #Function to save images
 def save_image(orig, modified, name):
     plt.subplot(2, 2, 1), plt.imshow(cv2.cvtColor(orig, cv2.COLOR_BGR2RGB))
@@ -109,91 +133,58 @@ def save_image(orig, modified, name):
 #Function to generate training data
 def generator(samples, batch_size=32):
     num_samples = len(samples)
-    while 1: # Loop forever so the generator never terminates
+    while True: # Loop forever so the generator never terminates
         shuffle(samples)
         for offset in range(0, num_samples, batch_size):
             batch_samples = shuffle(samples[offset:offset+batch_size])
             images = []
             angles = []
-            #To read all 32 center images
-            for batch_sample in batch_samples:
-                name = './data/IMG/'+batch_sample[0].split('/')[-1]
-                image = cv2.imread(name)
-                original = image
-                angle = float(batch_sample[3])
 
-                image = blur_image(image)
-                #save_image(original, image, 'blur_image')
+            # To read random 32x2 C/L/R images
+            for i in range(2):
+                for batch_sample in batch_samples:
+                    randimg = 0#random.randint(0, 2)
+                    name = './data/IMG/' + batch_sample[randimg].split('/')[-1]
+                    image = cv2.imread(name)
+                    #original = image
+                    angle = float(batch_sample[3])
 
-                #Random flip of images
-                if (random.randint(0, 5) == 0):
-                    image, angle = flip_image(image, angle)
-                    #save_image(original, image, 'flip_image')
+                    if randimg is 1:
+                        angle = angle + 0.2
+                    if randimg is 2:
+                        angle = angle - 0.2
 
-                # Random zoom image if steering angle > abs(0.3)
-                if(abs(angle) > 0.3):
+                    #Blur the image to reduce noise
+                    image = blur_image(image)
+
+                    # Random flip of images
                     if (random.randint(0, 2) == 0):
-                        image = zoom_image(image, 1.5)
-                        #save_image(original, image, 'zoom_image')
+                        image, angle = flip_image(image, angle)
 
-                #Random horizontal and vertical shifts for ONLY central images
-                image, angle = trans_image(image, angle, 80)
-                #save_image(original, image, 'center_trans_image')
+                    # Random horizontal and vertical shifts
+                    if randimg is 3:
+                        image, angle = trans_image(image, angle, 80)
+                    else:
+                        image, angle = trans_image(image, angle, 40)
 
-                # Random image blur or rotate or brightness augmentation
-                ran = random.randint(0, 9)
-                if(ran == 5):
-                    image = rotate_image(image)
-                    #save_image(original, image, 'rotate_image')
-                elif (ran == 1) or (ran == 2):
-                    image = augment_brightness_camera_images(image)
-                    #save_image(original,image,'augment_brightness')
+                    # Random image brightness augmentation and shadow
+                    ran = random.randint(0, 4)
+                    if(ran == 0):
+                        image = augment_brightness_camera_images(image)
+                    if(ran == 1):
+                        image = add_random_shadow(image)
+                        #save_image(original,image,'random_shadow')
 
-                images.append(image)
-                angles.append(angle)
-
-            # To read randomly read 32 left and right  images
-            for batch_sample in batch_samples:
-                randimg = random.randint(1, 2)
-                name = './data/IMG/' + batch_sample[randimg].split('/')[-1]
-                image = cv2.imread(name)
-                original = image
-                angle = float(batch_sample[3])
-                if randimg is 1:
-                    angle = angle + 0.2
-                if randimg is 2:
-                    angle = angle - 0.2
-
-                #Blur the image to reduce noise
-                image = blur_image(image)
-
-                # Random flip of images
-                if (random.randint(0, 5) == 0):
-                    image, angle = flip_image(image, angle)
-
-                # Random horizontal and vertical shifts for ONLY central images
-                image, angle = trans_image(image, angle, 40)
-                #if(randimg == 1):
-                    #save_image(original, image, 'left_trans_image')
-                #else:
-                    #save_image(original, image, 'right_trans_image')
-
-                # Random image blur or rotate or brightness augmentation
-                ran = random.randint(0, 9)
-                if (ran == 0):
-                    image = rotate_image(image)
-                elif (ran == 1) or (ran == 2):
-                    image = augment_brightness_camera_images(image)
-
-                images.append(image)
-                angles.append(angle)
+                    images.append(image)
+                    angles.append(angle)
 
             # trim image to only see section with road
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
 
-
+#As suggested in the forum used comma.ai model
+#Reference : https://github.com/commaai/research/blob/master/train_steering_model.py
 def get_model(time_len=1):
   ch, row, col = 3, 160, 320  # camera format
 
@@ -252,21 +243,21 @@ def main():
   else:
       model = get_model()
 
-  train_samples, validation_samples = train_test_split(samples, test_size=0.2)
+  train_samples, validation_samples = train_test_split(samples, test_size=0.1)
 
   print("Training samples count {0} , Validation samples count {1}".format(len(train_samples), len(validation_samples)))
 
   train_generator = generator(train_samples, batch_size=32)
   validation_generator = generator(validation_samples, batch_size=32)
 
-  plot_angle_histogram(train_generator, len(train_samples))
+  #plot_angle_histogram(train_generator, len(train_samples))
 
   model.compile(loss='mse', optimizer=Adam(lr=0.00001))
   model.fit_generator(train_generator,
                       samples_per_epoch= (len(train_samples)*2),
                       validation_data = validation_generator,
                       nb_val_samples = (len(validation_samples)*2),
-                      nb_epoch = 3)
+                      nb_epoch = 1)
 
   print("Saving model weights and configuration file.")
 
