@@ -87,7 +87,9 @@ To combat the overfitting, I saved the model when whenever it showed the better 
 The final step was to run the simulator to see how well the car was driving around track one. There were a few spots where the vehicle fell off the track.
 For example when there was shadow of tree, car was not not detecting left yellow line correctly was taking left turn. To improve this driving behavior in these cases, I introduced random "shadowed images"
 
-At the end of the process, the vehicle is able to drive autonomously 90% of the first track without leaving the road but at 2 locations car was going out of track. You can see it in the output video.mp4 that I manually altered path. I think my model is little left baised, many need more training to fix it.
+###Update : Also tried with NVIDIA model got better results than comma.ai model
+
+At the end of the process, the vehicle is able to drive autonomously 95% of the first track without leaving the road but at 1 location(sharp left turn) car was going out of track. You can see it in the output video.mp4 that I manually altered path, I think my model is little left baised, many need more training to fix it.
 
 ####2. Final Model Architecture
 
@@ -123,17 +125,25 @@ Here is an example image of center lane driving and visualization of the steerin
 ![alt text][image1]
 
 I then recorded the vehicle recovering from the left side and right sides of the road back to center so that the vehicle would learn to to simulate the effect of car wandering off to the side, and recovering. 
-Also added random horizontal shift of the images to simulate the effect of car being at different positions on the road, and add an offset corresponding to the shift to the steering angle. Added 0.004 steering angle units per pixel shift to the right, and subtracted 0.004 steering angle units per pixel shift to the left.
-#Reference : https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.9iigd72nq
-Below images are the example:
+Also added random horizontal shift of the images to simulate the effect of car being at different positions on the road, and add an offset corresponding to the shift to the steering angle. Added 0.004 steering angle units per pixel shift to the right, and subtracted 0.004 steering angle units per pixel shift to the left. 
+
+Below images are the examples of horizontal shift:
 
 ![alt text][image4]
 ![alt text][image5]
 ![alt text][image6]
 
+Reference : https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.9iigd72nq
+
+Also I added brightness augmentation and shadow augmentation from below reference. Brightness augmentation would definetely help for track two, will simulate day and night conditions. I observed that car was off track when there was shadow of a tree so added shadow image function. 
+
+![alt text][image2]
+![alt text][image4]
+![alt text][image10]
+
 Then I repeated this process on track two in order to get more data points. Observed that track two data didn't help that much for the car drive in track one.
 
-Used generators with batch isze 64, which is much more memory-efficient. Firstly I applied Guassain blur to remove noise. Below image is the example:
+Used generators with batch size 64, which is much more memory-efficient. Firstly I applied Guassain blur to remove noise. Below image is the example:
 
 ![alt text][image3]
 
@@ -144,20 +154,12 @@ For example, here are the images that has then been flipped, zoomed and slighlty
 ![alt text][image8]
 ![alt text][image8]
 
-Also I added Brightness augmentation and Shadow augmentation from below reference. Brightness augmentation would definetely help for track two, will simulate day and night conditions. I observed that car was off track when there was shaow of a tree so added shadow image function. 
-#Reference : https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.9iigd72nq
+After the collection process, I had around 40,000 number of data points. I then preprocessed this data by mostly by center images car was more baised to drive straight so randomlay processed center, right and left images for each data points to train the car to drive in the center. I finally randomly shuffled the data set and put 10% of the data into a validation set. The validation set helped determine if the model was over or under fitting. The ideal number of epochs were between 3-5 as evidenced by mean squared error was decreasing and was reduced to ~0.012. I used an adam optimizer so that manually training the learning rate wasn't necessary.
 
-![alt text][image2]
-![alt text][image4]
-![alt text][image10]
-
-After the collection process, I had around 20,000 number of data points. I then preprocessed this data by mostly by center images car was more baised to drive straight so randomlay processed center, right and left images for each data points to train the car to drive in the center. I finally randomly shuffled the data set and put 10% of the data into a validation set. 
-I used this training data for training the model. The validation set helped determine if the model was over or under fitting. The ideal number of epochs were between 3-5 as evidenced by mean squared error was decreasing and was reduced to ~0.012. I used an adam optimizer so that manually training the learning rate wasn't necessary.
-
-The entire training took about 4-5 minutes. However, it too more than 20 hours to arrive at the right training data and training parameters. Finally saved my trained model architecture as model.h5 using model.save('model.h5') 
+The entire training took about 4-5 minutes. However, it took more than 3 days to arrive at the right training data and training parameters. Finally saved my trained model architecture as model.h5 using model.save('model.h5') 
 
 Here is my final output video:
 
 ![alt text][video]
 
-Improvements: This project was defineltely the most challenging and fun in this term. I would continue to architect better model and train to drive the car on track 2 autonomously
+Improvements: This project was defineltely the most challenging and fun in this term. I would continue to architect better model and train to drive the car on track 2 100% autonomously

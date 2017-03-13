@@ -75,13 +75,13 @@ def rotate_image(image):
 #Function for brightness augmentation
 #Reference : https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.9iigd72nq
 def augment_brightness_camera_images(image):
-    image1 = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
+    image1 = cv2.cvtColor(image,cv2.COLOR_BGR2HSV)
     image1 = np.array(image1, dtype = np.float64)
     random_bright = .5+np.random.uniform()
     image1[:,:,2] = image1[:,:,2]*random_bright
     image1[:,:,2][image1[:,:,2]>255]  = 255
     image1 = np.array(image1, dtype = np.uint8)
-    image1 = cv2.cvtColor(image1,cv2.COLOR_HSV2RGB)
+    image1 = cv2.cvtColor(image1,cv2.COLOR_HSV2BGR)
     return image1
 
 #Function for horizontal and vertical shifts
@@ -104,7 +104,7 @@ def add_random_shadow(image):
     top_x = 0
     bot_x = 160
     bot_y = 320*np.random.uniform()
-    image_hls = cv2.cvtColor(image,cv2.COLOR_RGB2HLS)
+    image_hls = cv2.cvtColor(image,cv2.COLOR_BGR2HLS)
     shadow_mask = 0*image_hls[:,:,1]
     X_m = np.mgrid[0:image.shape[0],0:image.shape[1]][0]
     Y_m = np.mgrid[0:image.shape[0],0:image.shape[1]][1]
@@ -118,7 +118,7 @@ def add_random_shadow(image):
             image_hls[:,:,1][cond1] = image_hls[:,:,1][cond1]*random_bright
         else:
             image_hls[:,:,1][cond0] = image_hls[:,:,1][cond0]*random_bright
-    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2RGB)
+    image = cv2.cvtColor(image_hls,cv2.COLOR_HLS2BGR)
     return image
 
 #Function to save images
@@ -142,16 +142,18 @@ def generator(samples, batch_size=32):
             # To read random 32 C/L/R images
             for batch_sample in batch_samples:
                 randimg = random.randint(0, 2)
-                name = './data/IMG/' + batch_sample[randimg].split('/')[-1]
+                name = './data1/IMG/' + batch_sample[randimg].split('/')[-1]
                 image = cv2.imread(name)
                 #original = image
                 angle = float(batch_sample[3])
-                #if angle < 0 :
-                #    continue
+
                 if randimg is 1:
                     angle = angle + 0.2
                 if randimg is 2:
                     angle = angle - 0.2
+
+                if angle < 0:
+                    continue
 
                 #Blur the image to reduce noise
                 image = blur_image(image)
@@ -167,11 +169,11 @@ def generator(samples, batch_size=32):
                     image, angle = trans_image(image, angle, 40)
 
                 # Random image brightness augmentation and shadow
-                ran = random.randint(0, 4)
-                if(ran == 0):
-                    image = augment_brightness_camera_images(image)
-                if(ran == 1):
-                    image = add_random_shadow(image)
+                # ran = random.randint(0, 3)
+                # if(ran == 0):
+                #     image = augment_brightness_camera_images(image)
+                # if(ran == 1):
+                #     image = add_random_shadow(image)
                     #save_image(original,image,'shadow_image')
 
                 images.append(image)
@@ -181,6 +183,35 @@ def generator(samples, batch_size=32):
             X_train = np.array(images)
             y_train = np.array(angles)
             yield shuffle(X_train, y_train)
+
+def get_NVIDIA_model():
+    def resize_nvidia(image):
+        from keras.backend import tf as ktf
+        return ktf.image.resize_images(image, (66, 200))
+
+    model = Sequential()
+    model.add(Cropping2D(cropping=((40, 0), (20, 20)), input_shape=(160, 320, 3)))
+    model.add(Lambda(resize_nvidia, input_shape=(160, 320, 3)))
+    model.add(Lambda(lambda x: x / 127.5 - 1.,
+                     input_shape=(66, 200, 3),
+                     output_shape=(66, 200, 3)))
+
+    model.add(Convolution2D(24, 5, 5, subsample=(2, 2), activation='relu', border_mode='valid'))
+    model.add(Convolution2D(36, 5, 5, subsample=(2, 2), activation='relu', border_mode='valid'))
+    model.add(Convolution2D(48, 5, 5, subsample=(2, 2), activation='relu', border_mode='valid'))
+    model.add(Convolution2D(64, 3, 3, subsample=(1, 1), activation='relu', border_mode='valid'))
+    model.add(Convolution2D(64, 3, 3, subsample=(1, 1), activation='relu', border_mode='valid'))
+    model.add(Flatten())
+    model.add(Dense(1164, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(100, activation='relu'))
+    model.add(Dense(50, activation='relu'))
+    model.add(Dropout(0.5))
+    model.add(Dense(10, activation='relu'))
+    model.add(Dense(1))
+    model.compile(optimizer="adam", loss="mse")
+
+    return model
 
 #As suggested in the forum used comma.ai model
 #Reference : https://github.com/commaai/research/blob/master/train_steering_model.py
@@ -228,7 +259,7 @@ def plot_angle_histogram(train, size):
 
 def main():
   samples = []
-  with open('./data/driving_log.csv') as csvfile:
+  with open('./data1/driving_log.csv') as csvfile:
     print("driving log loaded")
     reader = csv.reader(csvfile)
     next(reader, None)  # skip the headers
@@ -240,9 +271,9 @@ def main():
       model = load_model("./model.h5")
       print("Loading existing model.h5")
   else:
-      model = get_model()
+      model = get_NVIDIA_model()
 
-  train_samples, validation_samples = train_test_split(samples, test_size=0.1)
+  train_samples, validation_samples = train_test_split(samples, test_size=0.3)
 
   print("Training samples count {0} , Validation samples count {1}".format(len(train_samples), len(validation_samples)))
 
@@ -251,12 +282,12 @@ def main():
 
   #plot_angle_histogram(train_generator, len(train_samples))
 
-  model.compile(loss='mse', optimizer=Adam(lr=0.0001)) #To alter the learning rate in Adam : Adam(lr=0.00001)
+  model.compile(loss='mse', optimizer=Adam(lr=0.00001)) #To alter the learning rate in Adam : Adam(lr=0.00001)
   model.fit_generator(train_generator,
                       samples_per_epoch= len(train_samples),
                       validation_data = validation_generator,
                       nb_val_samples = len(validation_samples),
-                      nb_epoch = 5)
+                      nb_epoch = 1)
 
   print("Saving model weights and configuration file.")
 
